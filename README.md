@@ -1,0 +1,97 @@
+# Mamaset 🌸
+
+**Your private memory vault for precious family moments.**
+
+Mamaset is a Telegram bot that helps parents preserve memories privately and permanently — photos uploaded via Telegram are stored on IPFS using Pinata's private file storage and minted as NFTs on **Base**. All AI inference runs through **Venice** for complete privacy: no data logging, no training on your family's conversations.
+
+---
+
+## What It Does
+
+| Feature | Description |
+|---|---|
+| 📸 **Photo Memories** | Send a photo + caption → stored privately on IPFS → minted as NFT on Base Sepolia |
+| 📖 **Private Vault** | Browse all your saved memories, delivered securely from Pinata |
+| 📅 **Milestone NFTs** | First Steps, First Words, First Food, Birthdays, Custom — each permanently on-chain |
+| 🍼 **Baby Log** | Track feedings, sleep, and diapers via natural language or structured input |
+| 📊 **Baby Log Chart** | 24-hour visual summary via QuickChart |
+| 💬 **Ask Mama** | Private AI parenting companion powered by Venice (llama-3.3-70b) — your questions never leave your device's session |
+
+---
+
+## Privacy Architecture
+
+```
+Parent's phone
+     │
+     ▼
+Telegram Bot (encrypted transport)
+     │
+     ├─▶ Photos → Pinata Private IPFS (encrypted, access-controlled)
+     │
+     ├─▶ NFT Metadata → Base Sepolia (on-chain permanent record)
+     │
+     └─▶ AI Questions → Venice API (private inference, zero data retention)
+```
+
+**Why Venice?** Venice runs open-source models (Llama 3.3 70B) with a hard privacy guarantee: no conversation logging, no training on user data. For a parenting app handling intimate family moments, this matters.
+
+---
+
+## Tech Stack
+
+- **Telegram** — Telegraf v4 bot framework
+- **IPFS** — Pinata SDK v2, private file storage (`pinata.upload.private`)
+- **Blockchain** — Base Sepolia (chain ID 84532), ethers.js v6
+- **Smart Contract** — ERC721 + ERC721URIStorage (`MamasetMemory.sol`), deployed at `0x92ecAc1323b97aC2D596A468050275f983C29cF9`
+- **AI** — Venice API (llama-3.3-70b) for private inference, OpenRouter fallback
+- **Local Cache** — better-sqlite3 for baby log + Pinata file cache (handles indexing delays)
+- **Charts** — QuickChart for 24hr baby activity visualizations
+
+---
+
+## Setup
+
+```bash
+npm install
+```
+
+Create `.env`:
+```
+TELEGRAM_BOT_TOKEN=...
+PINATA_JWT=...
+PINATA_GATEWAY=...
+BASE_PRIVATE_KEY=...
+BASE_CONTRACT_ADDRESS=0x92ecAc1323b97aC2D596A468050275f983C29cF9
+BASE_RPC_URL=https://sepolia.base.org
+VENICE_API_KEY=...
+OPENROUTER_API_KEY=...   # fallback only
+```
+
+```bash
+node index.js
+```
+
+---
+
+## Smart Contract
+
+```bash
+npx hardhat compile
+npx hardhat ignition deploy ./ignition/modules/MamasetMemory.js --network base-sepolia
+npx hardhat test
+```
+
+Deployed on Base Sepolia: [`0x92ecAc1323b97aC2D596A468050275f983C29cF9`](https://sepolia.basescan.org/address/0x92ecAc1323b97aC2D596A468050275f983C29cF9)
+
+---
+
+## Hackathon Tracks
+
+- **Venice Track** — Private AI inference for the Ask Mama parenting companion. Zero data logging.
+- **SuperRare Track** — Milestone moments (First Steps, First Words, Birthdays) minted as ERC721 NFTs on Base, creating a permanent, beautiful on-chain record of a child's life.
+- **Open Track** — End-to-end private memory preservation: IPFS + Base NFTs + Venice AI, built for parents.
+
+---
+
+Built with love for the Synthesis Hackathon 2026. 🌸
