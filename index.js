@@ -26,6 +26,11 @@ const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN);
 // SQLite baby log + local file cache
 const db = new Database("./data/babylog.db");
 db.exec(`
+  CREATE TABLE IF NOT EXISTS baby_profile (
+    userId    TEXT PRIMARY KEY,
+    babyName  TEXT NOT NULL,
+    created_at TEXT NOT NULL
+  );
   CREATE TABLE IF NOT EXISTS baby_log (
     id        INTEGER PRIMARY KEY AUTOINCREMENT,
     userId    TEXT    NOT NULL,
@@ -49,10 +54,23 @@ db.exec(`
 // User state: { section, step, data }
 const userState = {};
 
+// ─── Baby profile helpers ─────────────────────────────────────────────────────
+
+function getBabyName(userId) {
+  const row = db.prepare(`SELECT babyName FROM baby_profile WHERE userId = ?`).get(String(userId));
+  return row ? row.babyName : null;
+}
+
+function setBabyName(userId, name) {
+  db.prepare(`INSERT OR REPLACE INTO baby_profile (userId, babyName, created_at) VALUES (?, ?, ?)`)
+    .run(String(userId), name, new Date().toISOString());
+}
+
 // Persistent bottom keyboard
 const MAIN_KEYBOARD = Markup.keyboard([
   ["📸 Memories", "💬 Ask Mama"],
   ["📖 My Vault", "📅 Milestones", "🍼 Baby Log"],
+  ["🌙 Bedtime Story"],
 ]).resize();
 
 // Keyboard with skip caption row
@@ -120,10 +138,29 @@ async function getParentingAdvice(userMessage, userName) {
 // ─── /start ──────────────────────────────────────────────────────────────────
 
 bot.start((ctx) => {
-  userState[ctx.from.id] = { section: null, step: null, data: {} };
+  const userId = ctx.from.id;
+  const babyName = getBabyName(userId);
+  if (!babyName) {
+    userState[userId] = { section: "setup", step: "awaiting_baby_name", data: {} };
+    return ctx.reply("Welcome to Mamaset! 🌸\n\nBefore we start — what is your baby's name?");
+  }
+  userState[userId] = { section: null, step: null, data: {} };
   ctx.reply(
-    "Welcome to Mamaset! 🌸\n\nYour private memory vault for precious moments.\n\nTap a button below to get started.",
+    `Welcome back! 🌸\n\n${babyName}'s memory vault is ready.\n\nTap a button below to get started.`,
     MAIN_KEYBOARD
+  );
+});
+
+// ─── /profile ────────────────────────────────────────────────────────────────
+
+bot.command("profile", (ctx) => {
+  const userId = ctx.from.id;
+  const babyName = getBabyName(userId);
+  userState[userId] = { section: "setup", step: "awaiting_baby_name", data: {} };
+  ctx.reply(babyName
+    ? `Current baby name: *${babyName}*\n\nSend a new name to update it:`
+    : "What is your baby's name?",
+    { parse_mode: "Markdown" }
   );
 });
 
@@ -165,6 +202,23 @@ bot.on("text", async (ctx) => {
   const text = ctx.message.text.trim();
   const state = userState[userId] || { section: null, step: null, data: {} };
 
+  // Baby name setup
+  if (state.section === "setup" && state.step === "awaiting_baby_name") {
+    setBabyName(userId, text);
+    userState[userId] = { section: null, step: null, data: {} };
+    return ctx.reply(
+      `Beautiful name! 🌸 Welcome to ${text}'s memory vault.\n\nTap a button below to get started.`,
+      MAIN_KEYBOARD
+    );
+  }
+
+  // Bedtime story prompt
+  if (state.section === "bedtime" && state.step === "awaiting_prompt") {
+    const prompt = text === "⏭ Skip" ? null : text;
+    userState[userId] = { section: null, step: null, data: {} };
+    return handleBedtimeStory(ctx, prompt);
+  }
+
   // Skip caption button
   if (text === "⏭ Skip Caption") {
     if (state.section === "memories" && state.step === "awaiting_caption") {
@@ -192,6 +246,14 @@ bot.on("text", async (ctx) => {
   if (text === "🍼 Baby Log") {
     userState[userId] = { section: "babylog", step: "awaiting_type", data: {} };
     return handleBabyLogMenu(ctx);
+  }
+  if (text === "🌙 Bedtime Story") {
+    userState[userId] = { section: "bedtime", step: "awaiting_prompt", data: {} };
+    const babyName = getBabyName(userId) || "your baby";
+    return ctx.reply(
+      `🌙 What should tonight's story be about?\n\nGive me a theme or idea (e.g. _dinosaurs_, _the beach_, _a magic forest_, _butterflies_) — or just tap Skip for a surprise!`,
+      { parse_mode: "Markdown", ...Markup.keyboard([["⏭ Skip"], ["📸 Memories", "💬 Ask Mama"], ["📖 My Vault", "📅 Milestones", "🍼 Baby Log"], ["🌙 Bedtime Story"]]).resize() }
+    );
   }
 
   // Step dispatch
@@ -223,6 +285,35 @@ bot.on("text", async (ctx) => {
 
 // ─── 📸 Memories ─────────────────────────────────────────────────────────────
 
+async function suggestCaption(imageBuffer) {
+  if (!process.env.VENICE_API_KEY) return null;
+  try {
+    const base64 = Buffer.from(imageBuffer).toString("base64");
+    const res = await fetch("https://api.venice.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${process.env.VENICE_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "llama-3.2-11b-vision",
+        messages: [{
+          role: "user",
+          content: [
+            { type: "image_url", image_url: { url: `data:image/jpeg;base64,${base64}` } },
+            { type: "text", text: "Write a short, warm, one-sentence caption for this family photo. Keep it simple and heartfelt, under 15 words." },
+          ],
+        }],
+      }),
+    });
+    const data = await res.json();
+    return data.choices?.[0]?.message?.content?.trim() || null;
+  } catch (e) {
+    console.warn("Venice vision error:", e.message);
+    return null;
+  }
+}
+
 async function saveMemory(ctx, caption) {
   const userId = ctx.from.id;
   const state = userState[userId];
@@ -233,12 +324,23 @@ async function saveMemory(ctx, caption) {
     const buffer = await response.arrayBuffer();
     const file = new File([buffer], "memory.jpg", { type: "image/jpeg" });
 
+    // If no caption provided, ask Venice to suggest one
+    let finalCaption = caption;
+    if (caption === "No caption" && process.env.VENICE_API_KEY) {
+      ctx.reply("🤖 Venice is reading your photo...");
+      const suggestion = await suggestCaption(buffer);
+      if (suggestion) {
+        finalCaption = suggestion;
+        ctx.reply(`✨ Caption suggestion: _"${suggestion}"_`, { parse_mode: "Markdown" });
+      }
+    }
+
     console.log("Uploading to Pinata for user", userId);
     const upload = await pinata.upload.private
       .file(file)
       .name("Memory - " + pending.timestamp)
       .keyvalues({
-        caption,
+        caption: finalCaption,
         timestamp: pending.timestamp,
         userId: String(pending.userId),
         userName: pending.userName,
@@ -248,7 +350,7 @@ async function saveMemory(ctx, caption) {
 
     // Cache file locally so vault shows it immediately (Pinata list has indexing delay)
     db.prepare(`INSERT OR IGNORE INTO pinata_files (id, userId, name, caption, type, created_at) VALUES (?, ?, ?, ?, ?, ?)`)
-      .run(upload.id, String(pending.userId), "Memory - " + pending.timestamp, caption, "memory", new Date().toISOString());
+      .run(upload.id, String(pending.userId), "Memory - " + pending.timestamp, finalCaption, "memory", new Date().toISOString());
 
     const tokenURI = "https://" + process.env.PINATA_GATEWAY + "/files/" + upload.cid;
     ctx.reply("✨ Minting your memory on Base...");
@@ -257,10 +359,11 @@ async function saveMemory(ctx, caption) {
     await tx.wait();
     console.log("Mint done, tx:", tx.hash);
 
+    const babyName = getBabyName(userId) || "your baby";
     userState[userId] = { section: "memories", step: "awaiting_photo", data: {} };
     ctx.reply(
-      "✅ Memory saved! 🌸\n📝 " + caption + "\n\nTap 📖 My Vault to see all your memories.",
-      MAIN_KEYBOARD
+      `✅ Memory saved! 🌸\n📝 ${finalCaption}\n\n🔗 [View NFT on Base](https://sepolia.basescan.org/tx/${tx.hash})\n\nTap 📖 My Vault to see all of ${babyName}'s memories.`,
+      { parse_mode: "Markdown", ...MAIN_KEYBOARD }
     );
   } catch (error) {
     console.error("saveMemory error:", error);
@@ -403,10 +506,11 @@ async function saveMilestone(ctx, notes) {
     const tx = await baseContract.mintMemory(baseWallet.address, tokenURI);
     await tx.wait();
 
+    const babyName = getBabyName(userId) || "your baby";
     userState[userId] = { section: "milestones", step: "awaiting_type", data: {} };
     ctx.reply(
-      `✅ Milestone saved! 🌟\n🏷 ${milestoneType}\n📝 ${notes}`,
-      MAIN_KEYBOARD
+      `✅ Milestone saved forever! 🌟\n\n🏷 ${babyName}'s ${milestoneType}\n📝 ${notes}\n\n🔗 [View NFT on Base](https://sepolia.basescan.org/tx/${tx.hash})`,
+      { parse_mode: "Markdown", ...MAIN_KEYBOARD }
     );
   } catch (error) {
     console.error("saveMilestone error:", error);
@@ -704,6 +808,49 @@ async function handleAskMama(ctx, text) {
   } catch (error) {
     console.error("OpenRouter error:", error.message);
     ctx.reply("💛 I am having trouble connecting right now. Please try again!", MAIN_KEYBOARD);
+  }
+}
+
+// ─── 🌙 Bedtime Story ─────────────────────────────────────────────────────────
+
+async function handleBedtimeStory(ctx, prompt = null) {
+  const userId = String(ctx.from.id);
+  const babyName = getBabyName(ctx.from.id) || "your little one";
+  try {
+    ctx.sendChatAction("typing");
+    ctx.reply(prompt
+      ? `🌙 Writing a story about ${prompt} for ${babyName}...`
+      : `🌙 Writing a bedtime story just for ${babyName}...`
+    );
+
+    // Pull today's baby log for context
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const logs = db.prepare(`SELECT * FROM baby_log WHERE userId = ? AND timestamp >= ? ORDER BY timestamp ASC`).all(userId, since);
+
+    let dayContext = "";
+    if (logs.length > 0) {
+      const feedings = logs.filter(l => l.type === "feeding").length;
+      const sleeps = logs.filter(l => l.type === "sleep");
+      const diapers = logs.filter(l => l.type === "diaper").length;
+      const totalSleep = sleeps.map(s => s.duration || "").filter(Boolean).join(", ");
+      dayContext = `Today ${babyName} had ${feedings} feeding${feedings !== 1 ? "s" : ""}${totalSleep ? ", slept " + totalSleep : ""}, and ${diapers} diaper change${diapers !== 1 ? "s" : ""}.`;
+    }
+
+    const { text } = await callAI([
+      {
+        role: "system",
+        content: `You are a gentle bedtime storyteller for babies and toddlers. Write warm, soothing, imaginative bedtime stories that are 150-200 words. Use the baby's name throughout. End with them drifting off to sleep peacefully.`,
+      },
+      {
+        role: "user",
+        content: `Write a bedtime story for ${babyName}. ${dayContext}${prompt ? ` Tonight's theme: ${prompt}.` : ""} Make it cozy and sleepy.`,
+      },
+    ]);
+
+    ctx.reply("🌙 *Bedtime Story*\n\n" + text, { parse_mode: "Markdown", ...MAIN_KEYBOARD });
+  } catch (error) {
+    console.error("Bedtime story error:", error.message);
+    ctx.reply("💛 Could not generate a story right now. Try again!", MAIN_KEYBOARD);
   }
 }
 

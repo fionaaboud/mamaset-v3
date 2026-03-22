@@ -1,0 +1,45 @@
+{
+  "type": "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
+  "name": "Mamaset",
+  "description": "An emotionally intelligent AI parenting companion for the user-owned internet. Parents send photos via Telegram which are stored privately on IPFS (Pinata) and minted as NFTs on Base. Features milestone tracking, baby logging with NLP parsing, Venice-powered private AI parenting advice, and AI-generated bedtime stories — all user-owned and portable.",
+  "image": "https://github.com/fionaaboud/mamaset-v3/raw/master/assets/mamaset.png",
+  "version": "3.0.0",
+  "registrations": [
+    {
+      "agentId": "000183468c6643b9bb7a297c536fe1fc",
+      "agentRegistry": "https://synthesis.devfolio.co",
+      "registrationTxn": "https://basescan.org/tx/0x8513e7eba9bd069c87d4676e8e1db0cdb6d5652d51f84e57ef7ef4c8c93d2c1e",
+      "chain": "base-mainnet"
+    }
+  ],
+  "services": [
+    {
+      "name": "telegram",
+      "endpoint": "https://t.me/MamasetBot",
+      "version": "1.0",
+      "skills": [
+        "photo-memory-storage",
+        "milestone-nft-minting",
+        "baby-log-tracking",
+        "private-ai-parenting-advice",
+        "bedtime-story-generation"
+      ]
+    }
+  ],
+  "supportedTrust": ["crypto-economic"],
+  "onchain": {
+    "network": "base-sepolia",
+    "contractAddress": "0x92ecAc1323b97aC2D596A468050275f983C29cF9",
+    "contractType": "ERC-721"
+  },
+  "privacy": {
+    "storageProvider": "Pinata IPFS (private files)",
+    "aiInference": "Venice API (no data retention)",
+    "userDataPolicy": "All family data is user-owned. Photos stored as private IPFS files. AI queries processed with zero logging."
+  },
+  "humanOperator": {
+    "name": "Fiona Aboud",
+    "social": "@fionaaboud"
+  },
+  "active": true
+}
