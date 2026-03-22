@@ -296,7 +296,7 @@ async function suggestCaption(imageBuffer) {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "llama-3.2-11b-vision",
+        model: "qwen3-vl-235b-a22b",
         messages: [{
           role: "user",
           content: [
@@ -438,8 +438,52 @@ function handleMilestoneMenu(ctx) {
         Markup.button.callback("🎂 Birthday", "milestone_birthday"),
       ],
       [Markup.button.callback("✍️ Custom", "milestone_custom")],
+      [Markup.button.callback("📋 View My Milestones", "milestone_vault")],
     ])
   );
+}
+
+bot.action("milestone_vault", async (ctx) => {
+  ctx.answerCbQuery();
+  await handleMilestoneVault(ctx);
+});
+
+async function handleMilestoneVault(ctx) {
+  const userId = String(ctx.from.id);
+  const babyName = getBabyName(ctx.from.id) || "your baby";
+  try {
+    ctx.sendChatAction("typing");
+
+    // Pull from local cache first (fast, includes recent)
+    const localMilestones = db.prepare(
+      `SELECT * FROM pinata_files WHERE userId = ? AND type = 'milestone' ORDER BY created_at DESC`
+    ).all(userId);
+
+    if (localMilestones.length === 0) {
+      return ctx.reply(`No milestones saved yet! Tap a milestone above to record ${babyName}'s first one. 🌟`, MAIN_KEYBOARD);
+    }
+
+    const EMOJI = {
+      "First Steps": "🚶",
+      "First Words": "🗣",
+      "First Food": "🍴",
+      "Birthday": "🎂",
+    };
+
+    let message = `🌟 *${babyName}'s Milestones*\n\n`;
+    for (const m of localMilestones) {
+      const emoji = EMOJI[m.name?.replace("Milestone - ", "").split(" - ")[0]] || "✨";
+      const type = m.name?.replace("Milestone - ", "").split(" - ")[0] || "Milestone";
+      const date = new Date(m.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+      const notes = m.caption && m.caption !== "none" ? `_${m.caption}_` : "";
+      message += `${emoji} *${type}*\n📅 ${date}${notes ? "\n📝 " + notes : ""}\n\n`;
+    }
+
+    ctx.reply(message, { parse_mode: "Markdown", ...MAIN_KEYBOARD });
+  } catch (error) {
+    console.error("Milestone vault error:", error.message);
+    ctx.reply("Could not load milestones. Please try again.", MAIN_KEYBOARD);
+  }
 }
 
 const MILESTONE_LABELS = {
