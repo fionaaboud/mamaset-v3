@@ -4,6 +4,8 @@
 
 Mamaset uses Telegram, Venice, IPFS, and Base to help families capture memories, track milestones, and truly own their parenting data. Parents interact through Telegram, making it easy to document family life in real time. Photos are stored privately on IPFS via Pinata and minted as NFTs on Base Sepolia, creating permanent, portable proof of ownership. Venice powers all AI features — parenting advice, vision-based caption generation, and personalized bedtime stories — with zero data retention.
 
+▶️ **[Watch the demo](https://youtu.be/B9UrIpdzKxk)**
+
 ---
 
 ## What It Does
