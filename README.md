@@ -88,9 +88,9 @@ Deployed on Base Sepolia: [`0x92ecAc1323b97aC2D596A468050275f983C29cF9`](https:/
 
 ## Hackathon Tracks
 
-- **Venice Track** — Private AI inference for the Ask Mama parenting companion. Zero data logging.
-- **SuperRare Track** — Milestone moments (First Steps, First Words, Birthdays) minted as ERC721 NFTs on Base, creating a permanent, beautiful on-chain record of a child's life.
-- **Open Track** — End-to-end private memory preservation: IPFS + Base NFTs + Venice AI, built for parents.
+- **Venice — Private Agents, Trusted Actions** — Every AI touchpoint runs through Venice's private inference (llama-3.3-70b for text, qwen3-vl for vision). Zero data retention. Family conversations, parenting advice, and photo captions never leave the session.
+- **ERC-8004 — Agents With Receipts** — Mamaset is registered as a verifiable on-chain agent via ERC-8004 on Base Mainnet. Every NFT mint is a public receipt. Agent identity, capabilities, and decision log are documented in `agent.json` and `agent_log.json`.
+- **Synthesis Open Track** — End-to-end private memory preservation: private IPFS storage + Base NFTs + Venice AI, built for parents who want to own their family's data.
 
 ---
 
