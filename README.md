@@ -16,6 +16,9 @@ Mamaset uses Telegram, Venice, IPFS, and Base to help families capture memories,
 | 🍼 **Baby Log** | Track feedings, sleep, and diapers via natural language or structured input |
 | 📊 **Baby Log Chart** | 24-hour visual summary via QuickChart |
 | 💬 **Ask Mama** | Private AI parenting companion powered by Venice (llama-3.3-70b) — your questions never leave your device's session |
+| 📸 **Venice Vision Captions** | Skip the caption and Venice's vision AI reads your photo and suggests a warm, heartfelt caption automatically |
+| 🌙 **Bedtime Stories** | Venice generates a personalized bedtime story using your baby's name and today's activity log |
+| 🔗 **ERC-8004 Agent Identity** | Mamaset is registered as a verifiable on-chain agent via ERC-8004 on Base Mainnet — every NFT mint is a public receipt of agent activity on behalf of your family |
 
 ---
 
